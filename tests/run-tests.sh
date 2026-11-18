@@ -139,7 +139,7 @@ case_desktop() {
     assert_contains "$OUT" "Desktop-App installiert" "Desktop-App wurde installiert"
     assert_contains "$OUT" "claudecode-desktop.service läuft" "Desktop-Service läuft"
     assert_contains "$OUT" "Desktop-App (noVNC) antwortet auf Port 6080" "noVNC HTTP-Check grün"
-    assert_contains "$OUT" "http://10.0.0.42:6080" "Summary zeigt Desktop-URL (Port 6080)"
+    assert_contains "$OUT" "http://10.0.0.42:6080/vnc.html" "Summary zeigt Desktop-URL mit vnc.html (kein Directory-Listing!)"
     assert_file /etc/systemd/system/claudecode-desktop.service "Desktop-Unit installiert"
     assert_file /opt/claude-code/desktop-start.sh "Desktop-Start-Skript vorhanden"
     local ds
@@ -151,6 +151,9 @@ case_desktop() {
     assert_contains "$ds" "--no-sandbox" "Electron: --no-sandbox (fehlende User-Namespaces im CT)"
     assert_contains "$ds" "--disable-dev-shm-usage" "Electron: --disable-dev-shm-usage (kleines /dev/shm im CT)"
     assert_contains "$ds" "--disable-gpu" "Electron: --disable-gpu (kein GPU-Zugriff, Xvfb)"
+    # noVNC hat keine index.html → Start-Skript muss eine Weiterleitung anlegen
+    assert_contains "$ds" "/usr/share/novnc/index.html" "Start-Skript legt noVNC-index.html an (gegen Directory-Listing)"
+    assert_contains "$ds" "vnc.html" "Start-Skript verweist auf vnc.html (echter noVNC-Einstieg)"
     local du
     du=$(cat /etc/systemd/system/claudecode-desktop.service)
     assert_contains "$du" "desktop-start.sh" "Unit startet desktop-start.sh"

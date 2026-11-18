@@ -75,7 +75,7 @@ Claude Code hat neben dem Terminal noch eine **moderne UI** — die aber **nicht
 | **Claude Desktop App** (nativen PC) | nativ auf deinem PC (macOS/Windows/Linux .deb) | Per **SSH** auf den CT verbinden (Remote-SSH) |
 | **Web-Terminal** (ttyd) | im LXC | `http://<CT-IP>:7681` (Basic-Auth) |
 
-**Desktop-App im LXC (`--desktop`):** Die Linux-Beta (Electron) braucht ein Display — im headless-Container läuft sie auf einem **virtuellen Bildschirm** (Xvfb), per **x11vnc** und **noVNC** im Browser erreichbar (`http://<CT-IP>:6080`).Hinweis: Das ist eine **Beta** und frisst RAM (Electron ~500 MB+); für den Dauerbetrieb ist Remote Control (Browser/Handy) der schlankere Weg.
+**Desktop-App im LXC (`--desktop`):** Die Linux-Beta (Electron) braucht ein Display — im headless-Container läuft sie auf einem **virtuellen Bildschirm** (Xvfb), per **x11vnc** und **noVNC** im Browser erreichbar: **`http://<CT-IP>:6080/vnc.html`** (eine `index.html` leitet automatisch dorthin weiter). Ohne `/vnc.html` zeigt noVNC nur ein Directory-Listing — noVNC hat keine `index.html`. Hinweis: Das ist eine **Beta** und frisst RAM (Electron ~500 MB+); für den Dauerbetrieb ist Remote Control (Browser/Handy) der schlankere Weg.
 
 **Wichtig:** Remote Control ist nur ein **Fenster** in die lokal laufende Session — der CT muss laufen, Claude läuft im Container weiter. Die Desktop-App ist ein natives Programm (kein LXC-Paket); sie verbindet sich per SSH.
 

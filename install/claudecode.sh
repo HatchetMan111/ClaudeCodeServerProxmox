@@ -571,7 +571,7 @@ verify_installation() {
             fi
             sleep 1
         done
-        code=$(pct exec "$ct_id" -- curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DESKTOP_PORT}/" || true)
+        code=$(pct exec "$ct_id" -- curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DESKTOP_PORT}/vnc.html" || true)
         if [[ "$code" == "200" ]]; then
             ok "Desktop-App (noVNC) antwortet auf Port ${DESKTOP_PORT}"
         else
@@ -620,7 +620,7 @@ print_summary() {
     fi
     echo -e "  ${GREEN}  📁 Workspace:     /root/claude-workspace  (im Container)${NC}"
     if [[ "$DESKTOP" == "1" ]]; then
-        echo -e "  ${GREEN}  🖥️  Desktop-App:   http://${ct_ip}:${DESKTOP_PORT}  (Claude Desktop via noVNC)${NC}"
+        echo -e "  ${GREEN}  🖥️  Desktop-App:   http://${ct_ip}:${DESKTOP_PORT}/vnc.html  (Claude Desktop via noVNC)${NC}"
     fi
     echo -e "  ${GREEN}${BOLD}════════════════════════════════════════════════════════════${NC}"
     echo ""

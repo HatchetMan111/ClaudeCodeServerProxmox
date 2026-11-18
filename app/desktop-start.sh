@@ -19,6 +19,26 @@ x11vnc -display :99 -forever -shared -nopw -bg -o /var/log/x11vnc.log
 sleep 1
 
 # noVNC: WebSocket-Bridge + statisches Web-Frontend auf Port $PORT
+#
+# WICHTIG (Live-Fund 2026-11-18): noVNC hat KEINE index.html – ohne Zieldatei
+# liefert websockify ein Directory-Listing ("Directory listing for /"). Der
+# echte Einstieg heißt vnc.html. Da vnc.html seine Assets RELATIV einbindet
+# (app/, core/, vendor/), muss es im Wurzelverzeichnis des --web-Pfads liegen.
+# /usr/share/novnc ist genau dieses Wurzelverzeichnis → wir legen dort eine
+# index.html als Weiterleitung auf vnc.html (bleibt beim Reload/Deep-Link stabil).
+if [[ ! -e /usr/share/novnc/index.html ]]; then
+    cat > /usr/share/novnc/index.html <<'HTML'
+<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Claude Desktop (noVNC)</title>
+<meta http-equiv="refresh" content="0; url=vnc.html?autoconnect=1&resize=scale">
+<style>html{background:#1e1e1e;color:#eee;font-family:system-ui,sans-serif;
+display:flex;height:100vh;align-items:center;justify-content:center}</style></head>
+<body><p>Claude Desktop startet … <a style="color:#9cf" href="vnc.html?autoconnect=1&resize=scale">noVNC öffnen</a></p></body>
+</html>
+HTML
+fi
+
 websockify --web=/usr/share/novnc "$PORT" localhost:5900 &
 WS_PID=$!
 
