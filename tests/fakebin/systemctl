@@ -54,6 +54,8 @@ case "$cmd" in
                 mark_session_up
             elif [[ "$u" == "claudecode-web.service" ]]; then
                 touch "$STATE/systemd/claudecode-web.service.active"
+            elif [[ "$u" == "claudecode-desktop.service" ]]; then
+                touch "$STATE/systemd/claudecode-desktop.service.active"
             fi
         done
         ;;

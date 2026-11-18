@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Mock: gpg – der Installer prüft den Fingerprint des Claude-Desktop-Keys.
+# Liefert für den Mock-Key den erwarteten Fingerprint (31DDDE24...).
+case "${1:-} ${2:-}" in
+    *--show-keys*)
+        echo "fpr:::::::::31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE:"
+        ;;
+    *)
+        echo "mock-gpg: $*"
+        ;;
+esac
+exit 0

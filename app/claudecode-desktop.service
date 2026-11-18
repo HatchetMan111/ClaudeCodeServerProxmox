@@ -1,0 +1,15 @@
+[Unit]
+Description=Claude Desktop App (Linux-Beta) auf virtuellem Bildschirm + noVNC
+Documentation=https://github.com/HatchetMan111/ClaudeCodeServerProxmox
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# __DESKTOP_PORT__ wird vom Installer ersetzt.
+# Xvfb (:99) + x11vnc + noVNC (Port __DESKTOP_PORT__) + claude-desktop (Electron).
+ExecStart=/opt/claude-code/desktop-start.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

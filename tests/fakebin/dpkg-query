@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Mock: dpkg-query – Claude Desktop Version
+echo "1.17377.0"

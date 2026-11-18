@@ -39,6 +39,8 @@ bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCod
 | `--port PORT` | `7681` | Web-Terminal-Port im Container |
 | `--claude-version VER` | `latest` | Claude-Code-Version (`latest`/`stable`/z. B. `2.1.326`) |
 | `--api-key KEY` | – | `ANTHROPIC_API_KEY` setzen (sonst OAuth-Login im ersten Lauf) |
+| `--desktop` | – | Claude Desktop App (Linux-Beta) + virtueller Bildschirm (Xvfb) + noVNC im Browser (Port 6080) |
+| `--desktop-port PORT` | `6080` | noVNC-Web-Port im Container |
 | `--force` | – | Vorhandenen CT mit gleichem Hostname löschen + neu anlegen |
 | `--yes / -y` | – | Rückfragen überspringen |
 | `--update` | – | Claude-Code-Version im bestehenden CT erneuern |
@@ -68,8 +70,11 @@ Claude Code hat neben dem Terminal noch eine **moderne UI** — die aber **nicht
 | Oberfläche | Wo sie läuft | Wie sie mit dem LXC verbunden wird |
 |---|---|---|
 | **Remote Control** (claude.ai/code, Browser & Handy) | Anthropic-Cloud, zeigt **diese** Session | In der Session `/login` (OAuth, **Claude-Plan Pro/Max/Ultra/Team/Enterprise nötig, kein API-Key**) → Browser öffnen → Session `claudecode` wählen |
-| **Claude Desktop App** („Code"-Tab) | nativ auf deinem PC (macOS/Windows/Linux .deb) | Per **SSH** auf den CT verbinden (Remote-SSH) |
+| **Claude Desktop App** (Linux-Beta) | **im LXC** (Xvfb + noVNC) | Installation mit `--desktop` → `http://<CT-IP>:6080` (noVNC im Browser) |
+| **Claude Desktop App** (nativen PC) | nativ auf deinem PC (macOS/Windows/Linux .deb) | Per **SSH** auf den CT verbinden (Remote-SSH) |
 | **Web-Terminal** (ttyd) | im LXC | `http://<CT-IP>:7681` (Basic-Auth) |
+
+**Desktop-App im LXC (`--desktop`):** Die Linux-Beta (Electron) braucht ein Display — im headless-Container läuft sie auf einem **virtuellen Bildschirm** (Xvfb), per **x11vnc** und **noVNC** im Browser erreichbar (`http://<CT-IP>:6080`).Hinweis: Das ist eine **Beta** und frisst RAM (Electron ~500 MB+); für den Dauerbetrieb ist Remote Control (Browser/Handy) der schlankere Weg.
 
 **Wichtig:** Remote Control ist nur ein **Fenster** in die lokal laufende Session — der CT muss laufen, Claude läuft im Container weiter. Die Desktop-App ist ein natives Programm (kein LXC-Paket); sie verbindet sich per SSH.
 

@@ -50,6 +50,8 @@ CT_PASSWORD=""              # leer = automatisch generieren
 PORT=7681                   # Web-Terminal-Port im Container
 API_KEY=""                  # optional: ANTHROPIC_API_KEY (sonst OAuth-Login im 1. Lauf)
 WEB_PASSWORD=""             # Basic-Auth-Passwort für ttyd (leer = automatisch)
+DESKTOP=0                 # Claude Desktop App (Linux-Beta) + Xvfb + noVNC (Port 6080)
+DESKTOP_PORT=6080           # noVNC-Web-Port für die Desktop-App im Container
 UNINSTALL=false
 UPDATE=false
 STATUS_CHECK=false
@@ -242,6 +244,8 @@ parse_args() {
             --port)            PORT="${args[$((i+1))]:-}"; i=$((i+2)) ;;
             --claude-version)  CLAUDE_VERSION="${args[$((i+1))]:-}"; i=$((i+2)) ;;
             --api-key)         API_KEY="${args[$((i+1))]:-}"; i=$((i+2)) ;;
+            --desktop)         DESKTOP=1; i=$((i+1)) ;;
+            --desktop-port)    DESKTOP_PORT="${args[$((i+1))]:-}"; i=$((i+2)) ;;
             --force)           FORCE_RECREATE=true; i=$((i+1)) ;;
             --yes|-y)          ASSUME_YES=true; i=$((i+1)) ;;
             --update)          UPDATE=true; i=$((i+1)) ;;
@@ -275,6 +279,8 @@ Optionen (hinter dem schließenden Anführungszeichen anhängen, z. B. ... " --i
   --port PORT           Web-Terminal-Port im Container (Default: 7681)
   --claude-version VER  Claude-Code-Version (Default: latest; auch stable oder z. B. 2.1.326)
   --api-key KEY         ANTHROPIC_API_KEY setzen (sonst OAuth-Login im ersten Lauf)
+  --desktop             Claude Desktop App (Linux-Beta) + virtueller Bildschirm (Xvfb) + noVNC im Browser (Port 6080)
+  --desktop-port PORT   noVNC-Web-Port im Container (Default: 6080)
   --force               Vorhandenen Container mit gleichem Hostname löschen und neu anlegen
   --yes / -y            Rückfragen überspringen
   --update              Claude-Code-Version im bestehenden Container erneuern (Login bleibt)
@@ -423,6 +429,29 @@ HINTS
 grep -q '^CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=' /opt/claude-code/claude.env 2>/dev/null || \
     printf '# Remote Control (Web-UI) braucht Feature-Flags: diese NICHT auf 1 setzen!\n# CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1  -> deaktiviert Remote Control\n' >> /opt/claude-code/claude.env
 
+if [[ "${DESKTOP:-0}" == "1" ]]; then
+    echo ">>> Claude Desktop App (Linux-Beta) + virtueller Bildschirm (Xvfb) + noVNC ..."
+    # Desktop-App braucht zwingend ein Display: im headless-LXC über Xvfb +
+    # x11vnc + noVNC (WebSocket) im Browser. Claude Desktop = Electron-App.
+    apt-get install -y -qq xvfb x11vnc novnc websockify xterm >/dev/null
+    # Anthropic apt-Repo (signierter Key, Fingerprint 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE)
+    curl -fsSL --retry 3 https://downloads.claude.ai/claude-desktop/key.asc -o /tmp/claude-desktop-key.asc
+    gpg --show-keys --with-colons /tmp/claude-desktop-key.asc 2>/dev/null | grep -q "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE" \
+        || { echo "FEHLER: Claude-Desktop-Signing-Key hat unerwarteten Fingerprint"; exit 11; }
+    install -m 644 /tmp/claude-desktop-key.asc /usr/share/keyrings/claude-desktop-archive-keyring.asc
+    echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/claude-desktop-archive-keyring.asc] https://downloads.claude.ai/claude-desktop/apt/stable stable main" > /etc/apt/sources.list.d/claude-desktop.list
+    apt-get update -qq
+    apt-get install -y -qq claude-desktop >/dev/null
+    rm -f /tmp/claude-desktop-key.asc
+    echo ">>> Desktop-App installiert: $(dpkg-query -W -f='${Version}' claude-desktop 2>/dev/null || echo unbekannt)"
+    # Start-Skript + systemd-Unit aus dem Repo-Tarball (Port-Platzhalter ersetzen)
+    install -m 755 /tmp/claudecode-src/app/desktop-start.sh /opt/claude-code/desktop-start.sh
+    sed -i "s/__DESKTOP_PORT__/${DESKTOP_PORT}/g" /opt/claude-code/desktop-start.sh
+    install -m 644 /tmp/claudecode-src/app/claudecode-desktop.service /etc/systemd/system/claudecode-desktop.service
+    sed -i "s/__DESKTOP_PORT__/${DESKTOP_PORT}/g" /etc/systemd/system/claudecode-desktop.service
+    echo ">>> Desktop-Start: /opt/claude-code/desktop-start.sh (noVNC Port ${DESKTOP_PORT})"
+fi
+
 # Aufräumen erst NACH allen installs
 rm -rf /tmp/claudecode-src /tmp/claudecode-installer.tar.gz
 
@@ -430,6 +459,11 @@ echo ">>> Service aktivieren (Session + Web-Terminal) ..."
 systemctl daemon-reload
 systemctl enable --now claudecode-session.service claudecode-web.service
 systemctl restart claudecode-session.service claudecode-web.service
+if [[ "${DESKTOP:-0}" == "1" ]]; then
+    echo ">>> Desktop-Service aktivieren (Claude Desktop via noVNC) ..."
+    systemctl enable --now claudecode-desktop.service
+    systemctl restart claudecode-desktop.service
+fi
 
 echo ">>> Setup abgeschlossen. Log: /var/log/claudecode-setup.log"
 INNEREOF
@@ -450,6 +484,7 @@ run_inner_setup() {
     # Exit-Code (Fehler im inner liefen als "erfolgreich" durch!).
     pct exec "$ct_id" -- env CLAUDE_VERSION="$CLAUDE_VERSION" PORT="$PORT" \
         WEB_PASSWORD="$WEB_PASSWORD" API_KEY="$API_KEY" HOST_DNS="$HOST_DNS" \
+        DESKTOP="$DESKTOP" DESKTOP_PORT="$DESKTOP_PORT" \
         bash -c "bash /root/setup-inner.sh 2>&1 | tee /var/log/claudecode-setup.log; exit \${PIPESTATUS[0]}"
 }
 
@@ -493,6 +528,28 @@ verify_installation() {
     fi
     ok "Claude Code: $claude_ver"
 
+    # Desktop-App (optional): Service aktiv + noVNC antwortet?
+    if [[ "$DESKTOP" == "1" ]]; then
+        tries=0
+        while true; do
+            if pct exec "$ct_id" -- systemctl is-active --quiet claudecode-desktop.service 2>/dev/null; then
+                ok "Service claudecode-desktop.service läuft (Claude Desktop via noVNC)"
+                break
+            fi
+            tries=$((tries + 1))
+            if [[ $tries -ge 30 ]]; then
+                die "Service claudecode-desktop.service läuft nicht.\n  Debug: pct exec $ct_id -- journalctl -u claudecode-desktop -e"
+            fi
+            sleep 1
+        done
+        code=$(pct exec "$ct_id" -- curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DESKTOP_PORT}/" || true)
+        if [[ "$code" == "200" ]]; then
+            ok "Desktop-App (noVNC) antwortet auf Port ${DESKTOP_PORT}"
+        else
+            warn "Desktop-App (noVNC) antwortet nicht (HTTP ${code:-unbekannt}) – evtl. noch am Starten."
+        fi
+    fi
+
     # Web-Terminal antwortet? (Grube: curl -w gibt bei Verbindungsfehler
     # bereits 000 aus – NIE zusätzlich || echo 000 anhängen.)
     tries=0
@@ -533,6 +590,9 @@ print_summary() {
         echo -e "  ${GREEN}  🔏 API-Key:       gesetzt (${API_KEY:0:12}…, in /opt/claude-code/claude.env)${NC}"
     fi
     echo -e "  ${GREEN}  📁 Workspace:     /root/claude-workspace  (im Container)${NC}"
+    if [[ "$DESKTOP" == "1" ]]; then
+        echo -e "  ${GREEN}  🖥️  Desktop-App:   http://${ct_ip}:${DESKTOP_PORT}  (Claude Desktop via noVNC)${NC}"
+    fi
     echo -e "  ${GREEN}${BOLD}════════════════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "  ${CYAN}So läuft die Session (dauerhaft – Reboot-sicher, Respawn bei Beenden):${NC}"
@@ -745,6 +805,12 @@ do_status() {
     else
         err "Web-Term:  claudecode-web.service läuft NICHT"
         info "Logs:      pct exec $ct_id -- journalctl -u claudecode-web -e"
+    fi
+    if pct exec "$ct_id" -- systemctl is-active --quiet claudecode-desktop.service 2>/dev/null; then
+        ok "Desktop:   claudecode-desktop.service läuft (noVNC)"
+    else
+        err "Desktop:   claudecode-desktop.service läuft NICHT"
+        info "Logs:      pct exec $ct_id -- journalctl -u claudecode-desktop -e"
     fi
     if pct exec "$ct_id" -- tmux has-session -t claude 2>/dev/null; then
         ok "tmux:      Session 'claude' vorhanden"

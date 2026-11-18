@@ -113,6 +113,26 @@ seed_preset() {
 }
 
 # ── Cases (laufen im NS; non_root bewusst nicht) ───────────────────────────
+case_desktop() {
+    # --desktop: Claude Desktop App (Linux-Beta) + Xvfb + noVNC
+    run_installer --desktop
+    assert_eq "$RC" 0 "Install-Exit-Code 0 (--desktop)"
+    assert_contains "$OUT" "Desktop-App installiert" "Desktop-App wurde installiert"
+    assert_contains "$OUT" "claudecode-desktop.service läuft" "Desktop-Service läuft"
+    assert_contains "$OUT" "Desktop-App (noVNC) antwortet auf Port 6080" "noVNC HTTP-Check grün"
+    assert_contains "$OUT" "http://10.0.0.42:6080" "Summary zeigt Desktop-URL (Port 6080)"
+    assert_file /etc/systemd/system/claudecode-desktop.service "Desktop-Unit installiert"
+    assert_file /opt/claude-code/desktop-start.sh "Desktop-Start-Skript vorhanden"
+    local ds
+    ds=$(cat /opt/claude-code/desktop-start.sh)
+    assert_contains "$ds" "6080" "Start-Skript: Port 6080 ersetzt"
+    assert_contains "$ds" "Xvfb" "Start-Skript nutzt Xvfb"
+    assert_contains "$ds" "claude-desktop" "Start-Skript startet claude-desktop"
+    local du
+    du=$(cat /etc/systemd/system/claudecode-desktop.service)
+    assert_contains "$du" "desktop-start.sh" "Unit startet desktop-start.sh"
+}
+
 case_fresh_install() {
     run_installer
     assert_eq "$RC" 0 "Install-Exit-Code 0"
@@ -376,7 +396,7 @@ declare -A PRESETS=(
     [dns_dead]=fresh [update_stopped]=existing-stopped [status_running]=status-running
     [status_stopped]=status-stopped [uninstall_yes]=uninstall [uninstall_confirm]=uninstall
     [dup_hostname]=dup [api_key]=fresh [version_pin]=fresh [help]=fresh
-    [zero_fallback]=status-running [error_chain]=fresh [ttyd_version_format]=fresh
+    [zero_fallback]=status-running [error_chain]=fresh [ttyd_version_format]=fresh [desktop]=fresh
 )
 declare -A DNS_MODES=(
     [dns_late]=late [dns_flaky]=flaky4 [dns_dead]=dead
@@ -438,6 +458,7 @@ CASES=(
     zero_fallback
     error_chain
     ttyd_version_format
+    desktop
     non_root
 )
 
@@ -453,13 +474,15 @@ if [[ "$MODE" == "--ns-setup" || "$MODE" == "--inner" ]]; then
     if [[ "$MODE" == "--ns-setup" ]]; then
         shift
         mount --make-rprivate /
-        mkdir -p /opt /root /usr/local/bin /var/log /etc/dhcp /etc/systemd/system
+        mkdir -p /opt /root /usr/local/bin /usr/share/keyrings /var/log /etc/dhcp /etc/systemd/system /etc/apt/sources.list.d
         mount -t tmpfs tmpfs /opt
         mount -t tmpfs tmpfs /root
         mount -t tmpfs tmpfs /usr/local/bin
+        mount -t tmpfs tmpfs /usr/share/keyrings
         mount -t tmpfs tmpfs /var/log
         mount -t tmpfs tmpfs /etc/dhcp
         mount -t tmpfs tmpfs /etc/systemd/system
+        mount -t tmpfs tmpfs /etc/apt/sources.list.d
         RESOLV_SCRATCH="/tmp/claudecode-harness-resolv.$$"
         : > "$RESOLV_SCRATCH"
         mount --bind "$RESOLV_SCRATCH" /etc/resolv.conf

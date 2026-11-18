@@ -41,12 +41,28 @@ case "$url" in
         sum=$(sha256sum "${HARNESS_ASSETS:?}/mock-ttyd.sh" | awk '{print $1}')
         printf '%s  ttyd.x86_64\n' "$sum" > "$out"
         ;;
+    *downloads.claude.ai/claude-desktop/key.asc)
+        [[ -n "$out" ]] || { echo "mock-curl: -o fehlt (claude-desktop key)" >&2; exit 1; }
+        # Fake-Key mit dem erwarteten Fingerprint (der Installer prüft per gpg)
+        printf -- '-----BEGIN PGP PUBLIC KEY BLOCK-----\nmock key for 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE\n-----END PGP PUBLIC KEY BLOCK-----\n' > "$out"
+        ;;
     http://127.0.0.1:*)
-        # Web-Terminal-Check: 200 nur wenn claudecode-web aktiv ist
-        if [[ -f "$STATE/systemd/claudecode-web.service.active" ]]; then
-            printf '200'
+        # Web-Terminal-Check (Port 7681): 200 wenn claudecode-web aktiv ist
+        if [[ "$url" == *":7681"* ]]; then
+            if [[ -f "$STATE/systemd/claudecode-web.service.active" ]]; then
+                printf '200'
+            else
+                printf '000'
+            fi
+        # Desktop-Check (Port 6080, noVNC): 200 wenn claudecode-desktop aktiv ist
+        elif [[ "$url" == *":6080"* ]]; then
+            if [[ -f "$STATE/systemd/claudecode-desktop.service.active" ]]; then
+                printf '200'
+            else
+                printf '000'
+            fi
         else
-            printf '000'
+            printf '200'
         fi
         ;;
     *)
