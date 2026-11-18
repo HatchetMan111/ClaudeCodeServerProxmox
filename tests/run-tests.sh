@@ -209,6 +209,8 @@ case_desktop() {
     inner=$(cat /root/setup-inner.sh)
     assert_contains "$inner" "apt-get install -y -qq gnupg" "Installer installiert gnupg bei Bedarf nach (Live-Grube: gpg fehlte)"
     assert_contains "$inner" "with-colons" "Installer parst Fingerprint aus fpr-Zeile (--with-colons)"
+    # Live-Grube Lauf #5: nacktes Template hat kein curl → Sicherstellung muss VOR dem Tarball-Download stehen
+    assert_contains "$inner" "command -v curl" "Installer stellt curl sicher (nacktes Template hat kein curl)"
 }
 
 case_fresh_install() {

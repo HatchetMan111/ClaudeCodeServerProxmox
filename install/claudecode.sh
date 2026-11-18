@@ -318,6 +318,16 @@ set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export LC_ALL=C   # verhindert perl/locale-Warnungen im frischen Debian-CT
 
+# WICHTIG (Live-Grube, Lauf #5): das nackte Debian-Template hat KEIN curl –
+# deshalb darf der Tarball-Download NICHT vor der curl-Sicherstellung stehen
+# (Exit 127 "curl: command not found"). ggf. curl + CA-Zertifikate nachladen;
+# im vollen Install-Pfad ist das später im Basis-Block ein No-Op.
+if ! command -v curl >/dev/null 2>&1; then
+    echo ">>> curl nachinstallieren (nacktes Template hat kein curl) ..."
+    apt-get update -qq
+    apt-get install -y -qq curl ca-certificates >/dev/null
+fi
+
 echo ">>> Installer-Tarball laden (systemd-Units aus diesem Repo) ..."
 # IMMER laden – auch bei SKIP_BASE (--desktop-only/--webui-only), weil Units
 # und Start-Skripte aus dem Repo-Tarball kommen.
@@ -328,7 +338,7 @@ tar -xzf /tmp/claudecode-installer.tar.gz -C /tmp/claudecode-src --strip-compone
 if [[ "${SKIP_BASE:-0}" != "1" ]]; then
 echo ">>> Basis-Pakete (tmux, curl, zstd, git) ..."
 apt-get update -qq
-# curl braucht das nackte Debian-Template vorher NICHT – deshalb apt zuerst.
+# curl ist ggf. schon da (Sicherstellung weiter oben) – apt install ist dann No-Op.
 # zstd: der offizielle Claude-Installer nutzt komprimierte Downloads, wenn
 # zstd vorhanden ist (deutlich schneller). procps liefert pgrep/pkill.
 apt-get install -y -qq tmux curl ca-certificates zstd git procps >/dev/null
