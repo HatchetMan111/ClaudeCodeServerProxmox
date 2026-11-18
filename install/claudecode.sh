@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  🤖 ClaudeCode – One-Click-Installer (Proxmox VE)
-#  https://github.com/HatchetMan111/ClaudeCode-Proxmox
+#  https://github.com/HatchetMan111/ClaudeCodeServerProxmox
 #
 #  Erstellt einen unprivilegierten LXC-Container und installiert darin
 #  Claude Code (https://claude.com/product/claude-code) als DAUERHAFT
@@ -11,7 +11,7 @@
 #    - ttyd-Webterminal (mit Basic-Auth-Passwort) als Web-UI auf die Live-Session
 #
 #  Installation (auf dem Proxmox-Host als root):
-#    bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCode-Proxmox/main/install/claudecode.sh)"
+#    bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCodeServerProxmox/main/install/claudecode.sh)"
 #
 #  Mit Optionen (direkt hinter dem schließenden Anführungszeichen):
 #    ... " --api-key sk-ant-... --memory 4096
@@ -30,7 +30,7 @@ set -Eeuo pipefail
 # ── Defaults ────────────────────────────────────────────────────────────────
 APP_NAME="claudecode"
 REPO_OWNER="HatchetMan111"
-REPO_NAME="ClaudeCode-Proxmox"
+REPO_NAME="ClaudeCodeServerProxmox"
 REPO_BRANCH="main"
 CLAUDE_VERSION="latest"     # latest | stable | feste Version (z. B. 2.1.326)
 TTYD_VERSION="1.7.7"        # Web-Terminal-Binary (statisch, GitHub-Release)
@@ -59,7 +59,7 @@ TMP_DIR=""
 LOG_FILE="/tmp/${APP_NAME}-installer-$(date +%Y%m%d-%H%M%S).log"
 # Der fertige Einzeiler für Hinweise/Fehlerausgaben – exakt kopierbar (Optionen
 # hinter dem schließenden Anführungszeichen; der Installer erkennt sie via $0-Fallback)
-ONE_LINER='bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCode-Proxmox/main/install/claudecode.sh)"'
+ONE_LINER='bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCodeServerProxmox/main/install/claudecode.sh)"'
 
 # ── Farben & Logging ───────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'

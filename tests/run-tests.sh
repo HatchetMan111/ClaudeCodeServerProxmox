@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# ClaudeCode-Proxmox Mock-Harness (kein Proxmox-Host nötig)
+# ClaudeCodeServerProxmox Mock-Harness (kein Proxmox-Host nötig)
 #
 # Läuft als unprivilegierter User: `unshare -rm` mappt den User auf root
 # (EUID 0 → Root-Prüfung des Production-Scripts testbar) und isoliert die
@@ -424,15 +424,15 @@ fi
 # ── Main (host-seitig) ─────────────────────────────────────────────────────
 mkdir -p "$WORK"
 
-echo "🧪 ClaudeCode-Proxmox Mock-Harness"
+echo "🧪 ClaudeCodeServerProxmox Mock-Harness"
 echo "   Installer: $INSTALLER"
 
 # Tarball-Fixture bauen (simuliert den codeload-Download des Repos).
 # --owner=0/--group=0: GitHub-Tarballs gehören uid 0 – im User-Namespace
 # wäre ein chown auf phil-uid (1000) unmöglich ("Invalid argument").
-mkdir -p "$WORK/pkgroot/ClaudeCode-Proxmox-main"
-cp -r "$REPO/app" "$WORK/pkgroot/ClaudeCode-Proxmox-main/app"
-tar --owner=0 --group=0 -czf "$WORK/src.tar.gz" -C "$WORK/pkgroot" ClaudeCode-Proxmox-main
+mkdir -p "$WORK/pkgroot/ClaudeCodeServerProxmox-main"
+cp -r "$REPO/app" "$WORK/pkgroot/ClaudeCodeServerProxmox-main/app"
+tar --owner=0 --group=0 -czf "$WORK/src.tar.gz" -C "$WORK/pkgroot" ClaudeCodeServerProxmox-main
 
 echo ""
 SELECTED=("${CASES[@]}")

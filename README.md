@@ -1,4 +1,4 @@
-# 🤖 ClaudeCode-Proxmox
+# 🤖 ClaudeCodeServerProxmox
 
 **Claude Code als dauerhaft laufende Session auf dem Proxmox-Server** — installierbar mit einem Einzeiler im Stil der [Proxmox VE Community Scripts](https://community-scripts.github.io/ProxmoxVE/).
 
@@ -12,13 +12,13 @@ Der Installer erstellt einen unprivilegierten LXC-Container (`claudecode`) und r
 ## 🚀 Installation (auf dem Proxmox-Host als root)
 
 ```bash
-bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCode-Proxmox/main/install/claudecode.sh)"
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCodeServerProxmox/main/install/claudecode.sh)"
 ```
 
 Mit Optionen (direkt hinter dem schließenden Anführungszeichen anhängen):
 
 ```bash
-bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCode-Proxmox/main/install/claudecode.sh)" \
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCodeServerProxmox/main/install/claudecode.sh)" \
   --id 210 --memory 4096 --api-key sk-ant-...
 ```
 
@@ -74,7 +74,7 @@ Alternativ:
 
 ```bash
 # Claude-Code-Version erneuern (Login, claude.env und Workspace bleiben erhalten)
-bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCode-Proxmox/main/install/claudecode.sh)" --update
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCodeServerProxmox/main/install/claudecode.sh)" --update
 
 # Status (Services, tmux-Session, IP, Version)
 ... --status

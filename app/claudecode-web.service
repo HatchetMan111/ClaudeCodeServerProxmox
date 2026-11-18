@@ -1,6 +1,6 @@
 [Unit]
 Description=Claude Code Web-Terminal (ttyd auf tmux 'claude')
-Documentation=https://github.com/HatchetMan111/ClaudeCode-Proxmox
+Documentation=https://github.com/HatchetMan111/ClaudeCodeServerProxmox
 After=network-online.target claudecode-session.service
 Wants=network-online.target
 

@@ -1,6 +1,6 @@
 [Unit]
 Description=Claude Code Dauersession (tmux 'claude')
-Documentation=https://github.com/HatchetMan111/ClaudeCode-Proxmox
+Documentation=https://github.com/HatchetMan111/ClaudeCodeServerProxmox
 After=network-online.target
 Wants=network-online.target
 
