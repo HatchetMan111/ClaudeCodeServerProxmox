@@ -335,11 +335,12 @@ ln -sfn "\$CLAUDE_BIN" /usr/local/bin/claude
 claude --version
 
 echo ">>> ttyd ${TTYD_VERSION} installieren (statisches Web-Terminal-Binary) ..."
-# Grube (Live 2026-11-18): ttyd --version gibt es NICHT – ohne Argument
-# kommt immer die Usage auf stderr + Exit 1. Deshalb ttyd NICHT per bare-Name
-# aufrufen (liegt nicht im PATH des pct-exec → Exit 127 killt unter set -e)
-# und KEINE invertierte Pipe im if (if ! cmd | grep liefert 0→1 und killt den
-# Lauf). Reihenfolge: erst installieren, was fehlt – dann EIN Nachweis.
+# ttyd NICHT per bare-Name aufrufen: /usr/local/bin liegt nicht im PATH des
+# pct-exec → Exit 127 killt unter set -euo pipefail den ganzen Lauf
+# (Live-Grube #1). Versions-Nachweis über ttyd -v: das Binary meldet
+# "1.7.7-40e79c7" (Release + Commit-Hash) – der Versions-Block steht in der
+# Usage-Ausgabe NICHT in der Zeile mit "ttyd", deshalb NIE zeilenbasiert
+# mit "ttyd.*VERSION" matchen (Live-Grube #2). Prefix-Match auf 1.7.7.
 if [[ ! -x /usr/local/bin/ttyd ]]; then
     curl -fsSL --retry 3 "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64" -o /tmp/ttyd.x86_64
     curl -fsSL --retry 3 "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/SHA256SUMS" -o /tmp/ttyd-SHA256SUMS
@@ -351,12 +352,12 @@ if [[ ! -x /usr/local/bin/ttyd ]]; then
     install -m 755 /tmp/ttyd.x86_64 /usr/local/bin/ttyd
     rm -f /tmp/ttyd.x86_64 /tmp/ttyd-SHA256SUMS
 fi
-TTYD_OUT=\$(/usr/local/bin/ttyd 2>&1 || true)
-if grep -q "ttyd.*${TTYD_VERSION}" <<< "\$TTYD_OUT"; then
+TTYD_VER_OUT=\$(/usr/local/bin/ttyd -v 2>/dev/null || true)
+if grep -q "^${TTYD_VERSION}" <<< "\$TTYD_VER_OUT"; then
     echo "ttyd ${TTYD_VERSION} einsatzbereit"
 else
     echo "FEHLER: /usr/local/bin/ttyd meldet nicht die erwartete Version ${TTYD_VERSION}"
-    echo "  Ausgabe war: \$TTYD_OUT"
+    echo "  Ausgabe war: \$TTYD_VER_OUT"
     exit 10
 fi
 
