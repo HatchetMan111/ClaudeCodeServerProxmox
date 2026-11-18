@@ -42,6 +42,9 @@ bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCod
 | `--desktop` | – | Claude Desktop App (Linux-Beta) + virtueller Bildschirm (Xvfb) + noVNC im Browser (Port 6080) |
 | `--desktop-port PORT` | `6080` | noVNC-Web-Port im Container |
 | `--desktop-only` | – | Nur die Desktop-App im **bestehenden** Container nachrüsten (Claude Code bleibt unangetastet) |
+| `--webui` | – | **CloudCLI-Web-Dashboard** (Community-UI im ZCode-Stil: modernes Browser-UI für die Sessions, **kein VNC**, Port 8090) |
+| `--webui-port PORT` | `8090` | Dashboard-Port im Container |
+| `--webui-only` | – | Nur das Dashboard im **bestehenden** Container nachrüsten |
 | `--force` | – | Vorhandenen CT mit gleichem Hostname löschen + neu anlegen |
 | `--yes / -y` | – | Rückfragen überspringen |
 | `--update` | – | Claude-Code-Version im bestehenden CT erneuern |
@@ -76,6 +79,19 @@ Claude Code hat neben dem Terminal noch eine **moderne UI** — die aber **nicht
 | **Web-Terminal** (ttyd) | im LXC | `http://<CT-IP>:7681` (Basic-Auth) |
 
 **Desktop-App im LXC (`--desktop`):** Die Linux-Beta (Electron) braucht ein Display — im headless-Container läuft sie auf einem **virtuellen Bildschirm** (Xvfb), per **x11vnc** und **noVNC** im Browser erreichbar: **`http://<CT-IP>:6080/vnc.html`** (eine `index.html` leitet automatisch dorthin weiter). Ohne `/vnc.html` zeigt noVNC nur ein Directory-Listing — noVNC hat keine `index.html`. Hinweis: Das ist eine **Beta** und frisst RAM (Electron ~500 MB+); für den Dauerbetrieb ist Remote Control (Browser/Handy) der schlankere Weg.
+
+### 📊 CloudCLI-Dashboard ohne VNC (`--webui`)
+
+Wie im ZCodeAI-Server-Projekt ein **modernes Browser-Dashboard auf einem Port** — aber ohne VNC: [CloudCLI](https://github.com/siteboon/claudecodeui) (früher Claude Code UI, 14k+ ★) ist eine selbst-hostbare Web-UI, die die Claude-Code-Sessions (`~/.claude`) automatisch entdeckt.
+
+```bash
+# Bei Neuinstallation:
+... --webui
+# Oder im bestehenden Container nachrüsten (schnell, ohne Claude-Code-Reinstall):
+... --webui-only
+```
+
+→ `http://<CT-IP>:8090` — beim ersten Öffnen legt man das lokale UI-Konto an; die Sessions aus dem Container sind sofort da. Voraussetzung: Node 22 wird bei Bedarf automatisch im CT installiert (offizielles Binary + SHA-256-geprüft). CloudCLI ist eine **Community-UI** (nicht von Anthropic) und nutzt deine eigene Claude-Subscription.
 
 **Wichtig:** Remote Control ist nur ein **Fenster** in die lokal laufende Session — der CT muss laufen, Claude läuft im Container weiter. Die Desktop-App ist ein natives Programm (kein LXC-Paket); sie verbindet sich per SSH.
 

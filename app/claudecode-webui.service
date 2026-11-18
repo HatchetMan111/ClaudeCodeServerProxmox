@@ -1,0 +1,19 @@
+[Unit]
+Description=Claude Code Web-Dashboard (CloudCLI, kein VNC)
+Documentation=https://github.com/HatchetMan111/ClaudeCodeServerProxmox
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# __WEBUI_PORT__ wird vom Installer ersetzt.
+# CloudCLI entdeckt die vorhandenen Claude-Code-Sessions (~/.claude) automatisch.
+# Beim ersten Öffnen im Browser legt man das lokale UI-Konto an.
+Environment=SERVER_PORT=__WEBUI_PORT__
+Environment=HOME=/root
+Environment=PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/opt/node22/bin/cloudcli start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

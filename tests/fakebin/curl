@@ -61,6 +61,13 @@ case "$url" in
             else
                 printf '000'
             fi
+        # Dashboard-Check (Port 8090, CloudCLI): 200 wenn claudecode-webui aktiv ist
+        elif [[ "$url" == *":8090"* ]]; then
+            if [[ -f "$STATE/systemd/claudecode-webui.service.active" ]]; then
+                printf '200'
+            else
+                printf '000'
+            fi
         else
             printf '200'
         fi

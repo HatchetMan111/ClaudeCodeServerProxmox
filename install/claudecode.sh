@@ -53,6 +53,10 @@ WEB_PASSWORD=""             # Basic-Auth-Passwort für ttyd (leer = automatisch)
 DESKTOP=0                 # Claude Desktop App (Linux-Beta) + Xvfb + noVNC (Port 6080)
 DESKTOP_PORT=6080           # noVNC-Web-Port für die Desktop-App im Container
 DESKTOP_ONLY=false          # nur die Desktop-App im BESTEHENDEN CT nachrüsten
+WEBUI=0                     # CloudCLI Web-Dashboard (Community-UI, kein VNC, Port 8090)
+WEBUI_PORT=8090             # Port des CloudCLI-Dashboards im Container
+WEBUI_ONLY=false            # nur das Dashboard im BESTEHENDEN CT nachrüsten
+NODE_VERSION="22.23.5"      # Node-LTS für CloudCLI (nur bei --webui installiert)
 UNINSTALL=false
 UPDATE=false
 STATUS_CHECK=false
@@ -248,6 +252,9 @@ parse_args() {
             --desktop)         DESKTOP=1; i=$((i+1)) ;;
             --desktop-port)    DESKTOP_PORT="${args[$((i+1))]:-}"; i=$((i+2)) ;;
             --desktop-only)    DESKTOP_ONLY=true; DESKTOP=1; i=$((i+1)) ;;
+            --webui)           WEBUI=1; i=$((i+1)) ;;
+            --webui-port)      WEBUI_PORT="${args[$((i+1))]:-}"; i=$((i+2)) ;;
+            --webui-only)      WEBUI_ONLY=true; WEBUI=1; i=$((i+1)) ;;
             --force)           FORCE_RECREATE=true; i=$((i+1)) ;;
             --yes|-y)          ASSUME_YES=true; i=$((i+1)) ;;
             --update)          UPDATE=true; i=$((i+1)) ;;
@@ -284,6 +291,9 @@ Optionen (hinter dem schließenden Anführungszeichen anhängen, z. B. ... " --i
   --desktop             Claude Desktop App (Linux-Beta) + virtueller Bildschirm (Xvfb) + noVNC im Browser (Port 6080)
   --desktop-port PORT   noVNC-Web-Port im Container (Default: 6080)
   --desktop-only        Nur die Desktop-App im BESTEHENDEN Container nachrüsten (Claude Code bleibt)
+  --webui               CloudCLI-Web-Dashboard installieren (Community-UI für Claude Code, KEIN VNC, Port 8090)
+  --webui-port PORT     Dashboard-Port im Container (Default: 8090)
+  --webui-only          Nur das Dashboard im BESTEHENDEN Container nachrüsten
   --force               Vorhandenen Container mit gleichem Hostname löschen und neu anlegen
   --yes / -y            Rückfragen überspringen
   --update              Claude-Code-Version im bestehenden Container erneuern (Login bleibt)
@@ -308,17 +318,20 @@ set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export LC_ALL=C   # verhindert perl/locale-Warnungen im frischen Debian-CT
 
+echo ">>> Installer-Tarball laden (systemd-Units aus diesem Repo) ..."
+# IMMER laden – auch bei SKIP_BASE (--desktop-only/--webui-only), weil Units
+# und Start-Skripte aus dem Repo-Tarball kommen.
+curl -fsSL --retry 3 "https://codeload.github.com/${REPO_OWNER}/${REPO_NAME}/tar.gz/refs/heads/${REPO_BRANCH}" -o /tmp/claudecode-installer.tar.gz
+rm -rf /tmp/claudecode-src && mkdir -p /tmp/claudecode-src
+tar -xzf /tmp/claudecode-installer.tar.gz -C /tmp/claudecode-src --strip-components=1
+
+if [[ "${SKIP_BASE:-0}" != "1" ]]; then
 echo ">>> Basis-Pakete (tmux, curl, zstd, git) ..."
 apt-get update -qq
 # curl braucht das nackte Debian-Template vorher NICHT – deshalb apt zuerst.
 # zstd: der offizielle Claude-Installer nutzt komprimierte Downloads, wenn
 # zstd vorhanden ist (deutlich schneller). procps liefert pgrep/pkill.
 apt-get install -y -qq tmux curl ca-certificates zstd git procps >/dev/null
-
-echo ">>> Installer-Tarball laden (systemd-Units aus diesem Repo) ..."
-curl -fsSL --retry 3 "https://codeload.github.com/${REPO_OWNER}/${REPO_NAME}/tar.gz/refs/heads/${REPO_BRANCH}" -o /tmp/claudecode-installer.tar.gz
-rm -rf /tmp/claudecode-src && mkdir -p /tmp/claudecode-src
-tar -xzf /tmp/claudecode-installer.tar.gz -C /tmp/claudecode-src --strip-components=1
 
 echo ">>> Nameserver festschreiben (DHCP-DNS des Netzes kann flaky sein) ..."
 mkdir -p /etc/dhcp/dhclient-enter-hooks.d
@@ -431,6 +444,7 @@ HINTS
 # sein (Feature-Flag-Evaluation). Nur setzen, wenn noch kein Wert vorhanden.
 grep -q '^CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=' /opt/claude-code/claude.env 2>/dev/null || \
     printf '# Remote Control (Web-UI) braucht Feature-Flags: diese NICHT auf 1 setzen!\n# CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1  -> deaktiviert Remote Control\n' >> /opt/claude-code/claude.env
+fi  # Ende SKIP_BASE-Basis-Block
 
 setup_desktop_block() {
 # Wird als FUNKTION im Inner-Script ausgeführt – so kann --desktop-only
@@ -473,8 +487,44 @@ echo ">>> Claude Desktop App (Linux-Beta) + virtueller Bildschirm (Xvfb) + noVNC
     echo ">>> Desktop-Start: /opt/claude-code/desktop-start.sh (noVNC Port ${DESKTOP_PORT})"
 }
 
+setup_webui_block() {
+# Wird als FUNKTION im Inner-Script ausgeführt – --webui-only rüstet genau
+# diesen Block im bestehenden CT nach (ohne Claude Code neu zu installieren).
+echo ">>> CloudCLI-Web-Dashboard installieren (Community-UI, kein VNC, Port ${WEBUI_PORT}) ..."
+# CloudCLI (siteboon/claudecodeui, 14k+ Sterne) ist die selbst-hostbare
+# Web-Oberfläche im Stil des ZCode-Web-Modus: Browser-Dashboard für die
+# Claude-Code-Sessions (~/.claude wird automatisch entdeckt).
+echo ">>> Node.js ${NODE_VERSION} installieren (LTS, offizielles Binary nach /opt/node22) ..."
+if [[ ! -x /opt/node22/bin/node ]] || ! /opt/node22/bin/node --version 2>/dev/null | grep -q "^v${NODE_VERSION}"; then
+    curl -fSL --retry 3 "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o "/tmp/node-v${NODE_VERSION}-linux-x64.tar.xz"
+    curl -fsSL --retry 3 "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" -o /tmp/node-SHASUMS.txt
+    # Checksumme gegen ABSOLUTEN Pfad prüfen (inner läuft in /root, Datei in /tmp)
+    NODE_SUM=\$(awk -v f="node-v${NODE_VERSION}-linux-x64.tar.xz" '\$2==f {print \$1}' /tmp/node-SHASUMS.txt)
+    if [[ -z "\$NODE_SUM" ]]; then
+        echo "FEHLER: node-v${NODE_VERSION}-linux-x64.tar.xz fehlt in SHASUMS256.txt"; exit 12
+    fi
+    echo "\${NODE_SUM}  /tmp/node-v${NODE_VERSION}-linux-x64.tar.xz" | sha256sum -c -
+    rm -rf /opt/node22
+    mkdir -p /opt/node22
+    tar -xJf "/tmp/node-v${NODE_VERSION}-linux-x64.tar.xz" -C /opt/node22 --strip-components=1
+    rm -f "/tmp/node-v${NODE_VERSION}-linux-x64.tar.xz" /tmp/node-SHASUMS.txt
+fi
+/opt/node22/bin/node --version
+export PATH="/opt/node22/bin:\$PATH"
+echo ">>> CloudCLI (@cloudcli-ai/cloudcli) global installieren ..."
+npm install -g --silent @cloudcli-ai/cloudcli
+/opt/node22/bin/cloudcli --version
+install -m 644 /tmp/claudecode-src/app/claudecode-webui.service /etc/systemd/system/claudecode-webui.service
+sed -i "s/__WEBUI_PORT__/${WEBUI_PORT}/g" /etc/systemd/system/claudecode-webui.service
+echo ">>> Dashboard-Start: cloudcli auf Port ${WEBUI_PORT} (Unit claudecode-webui.service)"
+}
+
 if [[ "${DESKTOP:-0}" == "1" ]]; then
     setup_desktop_block
+fi
+
+if [[ "${WEBUI:-0}" == "1" ]]; then
+    setup_webui_block
 fi
 
 # Aufräumen erst NACH allen installs
@@ -489,9 +539,17 @@ if [[ "${DESKTOP:-0}" == "1" ]]; then
     systemctl enable --now claudecode-desktop.service
     systemctl restart claudecode-desktop.service
 fi
+if [[ "${WEBUI:-0}" == "1" ]]; then
+    echo ">>> Dashboard-Service aktivieren (CloudCLI, kein VNC) ..."
+    systemctl enable --now claudecode-webui.service
+    systemctl restart claudecode-webui.service
+fi
 
 if [[ "${DESKTOP_ONLY:-0}" == "1" ]]; then
     echo ">>> --desktop-only: nur Desktop-Stack gestartet, Claude-Code-Units unverändert."
+fi
+if [[ "${WEBUI_ONLY:-0}" == "1" ]]; then
+    echo ">>> --webui-only: nur Dashboard gestartet, Claude-Code-Units unverändert."
 fi
 
 echo ">>> Setup abgeschlossen. Log: /var/log/claudecode-setup.log"
@@ -511,9 +569,15 @@ run_inner_setup() {
     # das nackte Debian-Template hat kein curl, pct exec curl → Exit 127!
     # Grube (tee-Pipe): ohne exit ${PIPESTATUS[0]} frisst die Pipe den inner-
     # Exit-Code (Fehler im inner liefen als "erfolgreich" durch!).
+    local skip_base=0
+    if $DESKTOP_ONLY || $WEBUI_ONLY; then
+        skip_base=1
+    fi
     pct exec "$ct_id" -- env CLAUDE_VERSION="$CLAUDE_VERSION" PORT="$PORT" \
         WEB_PASSWORD="$WEB_PASSWORD" API_KEY="$API_KEY" HOST_DNS="$HOST_DNS" \
         DESKTOP="$DESKTOP" DESKTOP_PORT="$DESKTOP_PORT" DESKTOP_ONLY="$DESKTOP_ONLY" \
+        WEBUI="$WEBUI" WEBUI_PORT="$WEBUI_PORT" WEBUI_ONLY="$WEBUI_ONLY" \
+        SKIP_BASE="$skip_base" \
         bash -c "bash /root/setup-inner.sh 2>&1 | tee /var/log/claudecode-setup.log; exit \${PIPESTATUS[0]}"
 }
 
@@ -579,6 +643,35 @@ verify_installation() {
         fi
     fi
 
+    # Web-Dashboard (optional): Service aktiv + HTTP antwortet?
+    if [[ "$WEBUI" == "1" ]]; then
+        tries=0
+        while true; do
+            if pct exec "$ct_id" -- systemctl is-active --quiet claudecode-webui.service 2>/dev/null; then
+                ok "Service claudecode-webui.service läuft (CloudCLI-Dashboard, kein VNC)"
+                break
+            fi
+            tries=$((tries + 1))
+            if [[ $tries -ge 30 ]]; then
+                die "Service claudecode-webui.service läuft nicht.\n  Debug: pct exec $ct_id -- journalctl -u claudecode-webui -e"
+            fi
+            sleep 1
+        done
+        tries=0
+        while true; do
+            code=$(pct exec "$ct_id" -- curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${WEBUI_PORT}/" || true)
+            if [[ "$code" == "200" || "$code" == "302" ]]; then
+                ok "Web-Dashboard antwortet auf Port ${WEBUI_PORT} (HTTP ${code})"
+                break
+            fi
+            tries=$((tries + 1))
+            if [[ $tries -ge 30 ]]; then
+                die "Web-Dashboard antwortet nicht (letzter HTTP-Code: ${code:-unbekannt}).\n  Debug: pct exec $ct_id -- journalctl -u claudecode-webui -e"
+            fi
+            sleep 1
+        done
+    fi
+
     # Web-Terminal antwortet? (Grube: curl -w gibt bei Verbindungsfehler
     # bereits 000 aus – NIE zusätzlich || echo 000 anhängen.)
     tries=0
@@ -622,6 +715,9 @@ print_summary() {
     if [[ "$DESKTOP" == "1" ]]; then
         echo -e "  ${GREEN}  🖥️  Desktop-App:   http://${ct_ip}:${DESKTOP_PORT}/vnc.html  (Claude Desktop via noVNC)${NC}"
     fi
+    if [[ "$WEBUI" == "1" ]]; then
+        echo -e "  ${GREEN}  📊 Dashboard:     http://${ct_ip}:${WEBUI_PORT}  (CloudCLI – modernes Web-UI, KEIN VNC)${NC}"
+    fi
     echo -e "  ${GREEN}${BOLD}════════════════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "  ${CYAN}So läuft die Session (dauerhaft – Reboot-sicher, Respawn bei Beenden):${NC}"
@@ -636,6 +732,7 @@ print_summary() {
     echo "     Zurückkehren: URL wieder öffnen (oder ssh/pct enter → tmux attach -t claude)."
     echo ""
     echo -e "  ${CYAN}Moderne Web-Oberfläche (optional, Claude-Plan nötig – kein API-Key):${NC}"
+    echo "  • Dashboard (CloudCLI): http://<CT-IP>:${WEBUI_PORT} – modernes Web-UI für die Sessions (self-hosted, kein VNC)"
     echo "  • Remote Control: /login in der Session → https://claude.ai/code → Session hier öffnen"
     echo "    (Browser/Handy als Fenster in diese Session; Claude läuft weiter im Container)"
     echo "  • Claude Desktop App (Code-Tab) → per SSH auf diesen CT verbinden (nativ, nicht im LXC)"
@@ -676,6 +773,34 @@ do_desktop_only() {
     verify_installation "$ct_id"
 
     ok "--desktop-only abgeschlossen – Claude-Code-Session blieb unverändert."
+    print_summary
+}
+
+# ── Web-UI-only (nur Dashboard im bestehenden CT nachrüsten) ────────────────
+do_webui_only() {
+    header "📊 CloudCLI-Dashboard im bestehenden Container nachrüsten (--webui-only)"
+
+    local ct_id
+    ct_id=$(find_ct_id_by_hostname || true)
+    if [[ -z "$ct_id" ]]; then
+        die "Kein Container mit Hostname '$CT_HOSTNAME' gefunden.\n  Erst installieren:  ${ONE_LINER}"
+    fi
+    CT_ID="$ct_id"
+
+    ensure_ct_running "$ct_id"
+    verify_ct_dns "$ct_id"
+
+    if [[ -z "$WEB_PASSWORD" ]]; then
+        WEB_PASSWORD=$(pct exec "$ct_id" -- sh -c "sed -n 's/.*-c ${TTYD_USER}:\([^ ]*\) .*/\1/p' /etc/systemd/system/claudecode-web.service" 2>/dev/null || true)
+        if [[ -z "$WEB_PASSWORD" ]]; then
+            WEB_PASSWORD=$(openssl rand -hex 16 2>/dev/null || true)
+        fi
+    fi
+
+    run_inner_setup "$ct_id"
+    verify_installation "$ct_id"
+
+    ok "--webui-only abgeschlossen – Claude-Code-Session blieb unverändert."
     print_summary
 }
 
@@ -870,6 +995,12 @@ do_status() {
         err "Desktop:   claudecode-desktop.service läuft NICHT"
         info "Logs:      pct exec $ct_id -- journalctl -u claudecode-desktop -e"
     fi
+    if pct exec "$ct_id" -- systemctl is-active --quiet claudecode-webui.service 2>/dev/null; then
+        ok "Dashboard: claudecode-webui.service läuft (CloudCLI, kein VNC)"
+    else
+        err "Dashboard: claudecode-webui.service läuft NICHT"
+        info "Logs:      pct exec $ct_id -- journalctl -u claudecode-webui -e"
+    fi
     if pct exec "$ct_id" -- tmux has-session -t claude 2>/dev/null; then
         ok "tmux:      Session 'claude' vorhanden"
     else
@@ -907,6 +1038,8 @@ elif $STATUS_CHECK; then
     do_status
 elif $DESKTOP_ONLY; then
     do_desktop_only
+elif $WEBUI_ONLY; then
+    do_webui_only
 else
     do_install
 fi

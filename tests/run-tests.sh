@@ -132,6 +132,53 @@ case_desktop_only() {
     fi
 }
 
+seed_node22() {
+    # Fake-Node-Installation, damit der Installer den Tarball-Download überspringt
+    # (der Download-Pfad ist im ZCode-Installer live bewährt; hier geht es um die
+    # Verdrahtung: npm → cloudcli → Unit → Service → HTTP-Check)
+    mkdir -p /opt/node22/bin
+    printf '#!/usr/bin/env bash\necho "v22.23.5"\n' > /opt/node22/bin/node
+    chmod +x /opt/node22/bin/node
+}
+
+case_webui() {
+    # --webui: CloudCLI-Dashboard (kein VNC) zusätzlich zur Basis-Installation
+    seed_node22
+    run_installer --webui
+    assert_eq "$RC" 0 "Install-Exit-Code 0 (--webui)"
+    assert_contains "$OUT" "CloudCLI-Web-Dashboard installieren" "CloudCLI-Block läuft"
+    assert_contains "$OUT" "v22.23.5" "Node 22 (Mock) wird erkannt"
+    assert_file "$HARNESS_STATE/npm-calls.log" "npm install lief"
+    local npmc
+    npmc=$(cat "$HARNESS_STATE/npm-calls.log" 2>/dev/null || echo "")
+    assert_contains "$npmc" "@cloudcli-ai/cloudcli" "CloudCLI-Paket installiert"
+    assert_file /etc/systemd/system/claudecode-webui.service "WebUI-Unit installiert"
+    local wu
+    wu=$(cat /etc/systemd/system/claudecode-webui.service)
+    assert_contains "$wu" "SERVER_PORT=8090" "WebUI-Unit: Port 8090 ersetzt"
+    assert_contains "$wu" "/opt/node22/bin/cloudcli start" "WebUI-Unit startet cloudcli"
+    assert_file "$HARNESS_STATE/systemd/claudecode-webui.service.active" "Dashboard-Service aktiv"
+    assert_contains "$OUT" "Web-Dashboard antwortet auf Port 8090" "Dashboard HTTP-Check grün"
+    assert_contains "$OUT" "📊 Dashboard:     http://10.0.0.42:8090" "Summary zeigt Dashboard-URL"
+}
+
+case_webui_only() {
+    # --webui-only: nur Dashboard im BESTEHENDEN CT (kein pct create!)
+    seed_node22
+    run_installer --webui-only
+    assert_eq "$RC" 0 "WebUI-only Exit-Code 0"
+    assert_contains "$OUT" "CloudCLI-Dashboard im bestehenden Container nachrüsten" "WebUI-only-Modus erkannt"
+    assert_contains "$OUT" "--webui-only abgeschlossen" "WebUI-only Abschlussmeldung"
+    assert_file "$HARNESS_STATE/systemd/claudecode-webui.service.active" "Dashboard-Service aktiv"
+    local calls
+    calls=$(cat "$HARNESS_STATE/pct-calls.log" 2>/dev/null || echo "")
+    if grep -q "pct create" <<< "$calls"; then
+        fail "WebUI-only darf keinen Container erzeugen"
+    else
+        ok "WebUI-only erzeugt keinen Container (idempotent auf bestehendem CT)"
+    fi
+}
+
 case_desktop() {
     # --desktop: Claude Desktop App (Linux-Beta) + Xvfb + noVNC
     run_installer --desktop
@@ -428,7 +475,7 @@ declare -A PRESETS=(
     [status_stopped]=status-stopped [uninstall_yes]=uninstall [uninstall_confirm]=uninstall
     [dup_hostname]=dup [api_key]=fresh [version_pin]=fresh [help]=fresh
     [zero_fallback]=status-running [error_chain]=fresh [ttyd_version_format]=fresh
-    [desktop]=fresh [desktop_only]=status-running
+    [desktop]=fresh [desktop_only]=status-running [webui]=fresh [webui_only]=status-running
 )
 declare -A DNS_MODES=(
     [dns_late]=late [dns_flaky]=flaky4 [dns_dead]=dead
@@ -492,6 +539,8 @@ CASES=(
     ttyd_version_format
     desktop
     desktop_only
+    webui
+    webui_only
     non_root
 )
 

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Mock: npm – installiert "globale Pakete" als Fake-Binarys, damit `cloudcli
+# --version` danach existiert (Aufrufmuster des Installers: npm install -g PKG).
+set -uo pipefail
+
+STATE="${HARNESS_STATE:?HARNESS_STATE fehlt}"
+mkdir -p "$STATE/npm"
+echo "npm $*" >> "$STATE/npm-calls.log"
+
+for arg in "$@"; do
+    case "$arg" in
+        @cloudcli-ai/cloudcli)
+            # Fake-Global-Binary anlegen (npm-Ordner liegt im PATH des Installers?)
+            # Der Installer ruft /opt/node22/bin/cloudcli direkt auf:
+            mkdir -p /opt/node22/bin
+            cat > /opt/node22/bin/cloudcli <<'BIN'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then
+    echo "1.37.9"
+    exit 0
+fi
+echo "mock-cloudcli: $*"
+exit 0
+BIN
+            chmod +x /opt/node22/bin/cloudcli
+            ;;
+    esac
+done
+exit 0
