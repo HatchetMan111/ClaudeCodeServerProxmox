@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Mock: gpg – der Installer prüft den Fingerprint des Claude-Desktop-Keys.
-# Liefert für den Mock-Key den erwarteten Fingerprint (31DDDE24...).
+# Mock: gpg – der Installer prüft den Fingerprint des Claude-Desktop-Keys per
+# `gpg --show-keys --with-colons ... | awk -F: '/^fpr:/{print $10; exit}'`.
+# Feld 10 muss der erwartete Fingerprint sein (echter Key: 31DDDE24...).
 case "${1:-} ${2:-}" in
-    *--show-keys*)
+    *--show-keys*--with-colons* | *--with-colons*--show-keys*)
+        echo "pub:-:4096:1:BAA929FF1A7ECACE:1774907248:::-:::escESC::::::23::0:"
         echo "fpr:::::::::31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE:"
+        echo "uid:-::::1774907248::CAFAE36E30AA1C3ED8F62C73DC76AF4EDF4126E6::Anthropic Claude Code Release Signing <security@anthropic.com>::::::::::0:"
+        ;;
+    *--show-keys*)
+        echo "gpg: key 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE (mock)"
         ;;
     *)
         echo "mock-gpg: $*"

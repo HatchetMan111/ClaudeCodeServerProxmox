@@ -24,9 +24,15 @@ WS_PID=$!
 
 sleep 1
 
-# Claude Desktop App starten (Electron). --no-sandbox, weil im unprivilegierten
-# LXC die User-Namespaces fehlen können; die Isolation übernimmt der CT.
-claude-desktop --no-sandbox >/var/log/claude-desktop.log 2>&1 &
+# Claude Desktop App starten (Electron). LXC-spezifische Flags:
+#   --no-sandbox            im unprivilegierten LXC fehlen User-Namespaces
+#   --disable-dev-shm-usage /dev/shm ist im CT oft nur 64 MB → Chromium-Crash,
+#                           Ausweichen auf /tmp
+#   --disable-gpu           kein GPU-Zugriff im Container; Software-Rendering
+#                           über Xvfb ist stabiler
+export LIBGL_ALWAYS_SOFTWARE=1
+claude-desktop --no-sandbox --disable-dev-shm-usage --disable-gpu \
+    >/var/log/claude-desktop.log 2>&1 &
 CD_PID=$!
 
 # Beim Beenden alle Kindprozesse sauber mitnehmen (systemd restartet dann den Stack)

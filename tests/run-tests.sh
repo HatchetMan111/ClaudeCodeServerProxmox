@@ -128,9 +128,18 @@ case_desktop() {
     assert_contains "$ds" "6080" "Start-Skript: Port 6080 ersetzt"
     assert_contains "$ds" "Xvfb" "Start-Skript nutzt Xvfb"
     assert_contains "$ds" "claude-desktop" "Start-Skript startet claude-desktop"
+    # LXC-Härtung der Electron-App (Live-Gruben: /dev/shm, User-Namespaces, GPU)
+    assert_contains "$ds" "--no-sandbox" "Electron: --no-sandbox (fehlende User-Namespaces im CT)"
+    assert_contains "$ds" "--disable-dev-shm-usage" "Electron: --disable-dev-shm-usage (kleines /dev/shm im CT)"
+    assert_contains "$ds" "--disable-gpu" "Electron: --disable-gpu (kein GPU-Zugriff, Xvfb)"
     local du
     du=$(cat /etc/systemd/system/claudecode-desktop.service)
     assert_contains "$du" "desktop-start.sh" "Unit startet desktop-start.sh"
+    # Installer muss gnupg nachinstallieren, falls im Template nicht vorhanden
+    local inner
+    inner=$(cat /root/setup-inner.sh)
+    assert_contains "$inner" "apt-get install -y -qq gnupg" "Installer installiert gnupg bei Bedarf nach (Live-Grube: gpg fehlte)"
+    assert_contains "$inner" "with-colons" "Installer parst Fingerprint aus fpr-Zeile (--with-colons)"
 }
 
 case_fresh_install() {

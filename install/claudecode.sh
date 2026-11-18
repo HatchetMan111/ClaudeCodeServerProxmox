@@ -434,10 +434,26 @@ if [[ "${DESKTOP:-0}" == "1" ]]; then
     # Desktop-App braucht zwingend ein Display: im headless-LXC über Xvfb +
     # x11vnc + noVNC (WebSocket) im Browser. Claude Desktop = Electron-App.
     apt-get install -y -qq xvfb x11vnc novnc websockify xterm >/dev/null
+    # WICHTIG (Live-Grube 2026-11-18): gpg ist im Debian-12-Template NICHT
+    # garantiert dabei – Anthropic warnt selbst davor. Ohne gpg scheitert die
+    # Fingerprint-Prüfung mit Exit 11 ("unerwarteter Fingerprint"), obwohl der
+    # Key korrekt ist. Deshalb gnupg hier explizit nachinstallieren.
+    if ! command -v gpg >/dev/null 2>&1; then
+        echo ">>> gnupg nachinstallieren (für Signing-Key-Prüfung) ..."
+        apt-get install -y -qq gnupg >/dev/null
+    fi
     # Anthropic apt-Repo (signierter Key, Fingerprint 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE)
     curl -fsSL --retry 3 https://downloads.claude.ai/claude-desktop/key.asc -o /tmp/claude-desktop-key.asc
-    gpg --show-keys --with-colons /tmp/claude-desktop-key.asc 2>/dev/null | grep -q "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE" \
-        || { echo "FEHLER: Claude-Desktop-Signing-Key hat unerwarteten Fingerprint"; exit 11; }
+    # Fingerprint aus der fpr-Zeile ziehen (10. Feld bei --with-colons) statt
+    # grep über die Gesamtausgabe – so matcht nur der Primary-Key, nicht die UID.
+    KEY_FPR=\$(gpg --show-keys --with-colons /tmp/claude-desktop-key.asc 2>/dev/null | awk -F: '/^fpr:/{print \$10; exit}')
+    if [[ "\$KEY_FPR" != "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE" ]]; then
+        echo "FEHLER: Claude-Desktop-Signing-Key hat unerwarteten Fingerprint."
+        echo "  Erwartet: 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"
+        echo "  Erhalten: \${KEY_FPR:-<leer – gpg-Ausgabe unlesbar oder Datei defekt>}"
+        gpg --show-keys /tmp/claude-desktop-key.asc || true
+        exit 11
+    fi
     install -m 644 /tmp/claude-desktop-key.asc /usr/share/keyrings/claude-desktop-archive-keyring.asc
     echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/claude-desktop-archive-keyring.asc] https://downloads.claude.ai/claude-desktop/apt/stable stable main" > /etc/apt/sources.list.d/claude-desktop.list
     apt-get update -qq
