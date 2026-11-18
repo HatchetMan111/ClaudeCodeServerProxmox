@@ -73,6 +73,27 @@ Claude Code hat neben dem Terminal noch eine **moderne UI** — die aber **nicht
 
 **Wichtig:** Remote Control ist nur ein **Fenster** in die lokal laufende Session — der CT muss laufen, Claude läuft im Container weiter. Die Desktop-App ist ein natives Programm (kein LXC-Paket); sie verbindet sich per SSH.
 
+### Schritt für Schritt: Claude-Oberfläche im Browser nutzen
+
+1. **Login in der Session** (einmalig): Web-Terminal öffnen → `claude` starten → OAuth-URL im Browser öffnen → anmelden → Code zurück ins Terminal
+   (Voraussetzung: Claude-Plan **Pro/Max/Ultra/Team/Enterprise** — mit API-Key funktioniert Remote Control **nicht**)
+2. **`https://claude.ai/code`** im Browser öffnen (oder Claude-App am Handy)
+3. Dort die Session **`claudecode`** (dein CT) auswählen — fertig
+
+Der CT muss dafür laufen; Claude läuft im Container weiter, auch wenn du Browser/App schließt.
+
+### Nach der Installation: Reboot-Test
+
+```bash
+pct reboot <CT-ID>          # z. B. pct reboot 204
+# danach prüfen:
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCodeServerProxmox/main/install/claudecode.sh)" --status
+```
+
+Session und Web-Terminal müssen nach dem Reboot wieder laufen (`onboot: 1` + systemd).
+
+> **Tipp:** Der CT bezieht seine IP per DHCP — die IP kann sich ändern (z. B. `10.120.1.141`). Für eine feste IP eine **DHCP-Reservierung** im Router setzen oder bei der Installation `--ip 10.120.1.x/24 --gateway 10.120.1.1` nutzen.
+
 ## 📡 Zugriffe
 
 | Was | Wo |
