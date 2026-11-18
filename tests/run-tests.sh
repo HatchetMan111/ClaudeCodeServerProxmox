@@ -321,13 +321,48 @@ case_non_root() {
     assert_contains "$OUT" "Bitte als root ausführen" "Root-Prüfung greift"
 }
 
+case_ttyd_version_format() {
+    # Regressionsschutz gegen Live-Gruben #1/#2: ttyd -v liefert
+    # "ttyd version 1.7.7-40e79c7" (server.c-Zeile printf("ttyd version %s")).
+    # Der Installer MUSS diesen String erkennen – ein Prefix-Match auf "1.7.7"
+    # scheitert, weil die Zeile mit "ttyd version " beginnt (Live-Lauf #3).
+    local want="${TTYD_VERSION:-$(sed -n 's/^TTYD_VERSION="\([^"]*\)".*/\1/p' "$INSTALLER")}"
+    local fakebin="$HARNESS_STATE/version-bin"
+    mkdir -p "$fakebin"
+    cp "$ASSETS/mock-ttyd.sh" "$fakebin/ttyd"
+    chmod +x "$fakebin/ttyd"
+    local v_out v_rc
+    v_out=$("$fakebin/ttyd" -v 2>/dev/null) && v_rc=0 || v_rc=$?
+    assert_eq "$v_rc" 0 "ttyd -v endet mit Exit 0"
+    if grep -q "ttyd version ${want}" <<< "$v_out"; then
+        ok "Installer-Muster 'ttyd version ${want}' matcht den echten ttyd -v-String"
+    else
+        fail "Installer-Muster würde den echten ttyd -v-String NICHT matchen"
+    fi
+    # Gegenprobe: der alte Prefix-Match ^1.7.7 darf NICHT akzeptieren
+    if grep -q "^${want}" <<< "$v_out"; then
+        fail "falsch: Prefix ^${want} würde den echten ttyd -v-String akzeptieren (Live-Grube #2)"
+    else
+        ok "Prefix ^${want} matcht den echten String NICHT (war der Live-Bug #2)"
+    fi
+    # Gegenprobe: Usage-Ausgabe (ohne Argument) enthält zwar die Version,
+    # aber NIE in einer Zeile "ttyd version ..." → darf nicht akzeptieren
+    local usage_out
+    usage_out=$("$fakebin/ttyd" 2>&1 || true)
+    if grep -q "ttyd version ${want}" <<< "$usage_out"; then
+        fail "falsch: Usage-Output würde als ttyd -v-Erfolg akzeptiert"
+    else
+        ok "Usage-Output wird NICHT als Versions-Erfolg akzeptiert (Live-Grube #1/#3)"
+    fi
+}
+
 # ── NS-Runner (host-seitig) ────────────────────────────────────────────────
 declare -A PRESETS=(
     [fresh_install]=fresh [id_skip]=occupied200 [dns_late]=fresh [dns_flaky]=fresh
     [dns_dead]=fresh [update_stopped]=existing-stopped [status_running]=status-running
     [status_stopped]=status-stopped [uninstall_yes]=uninstall [uninstall_confirm]=uninstall
     [dup_hostname]=dup [api_key]=fresh [version_pin]=fresh [help]=fresh
-    [zero_fallback]=status-running [error_chain]=fresh
+    [zero_fallback]=status-running [error_chain]=fresh [ttyd_version_format]=fresh
 )
 declare -A DNS_MODES=(
     [dns_late]=late [dns_flaky]=flaky4 [dns_dead]=dead
@@ -348,9 +383,10 @@ run_case() {
         HARNESS_ASSETS="$ASSETS" RESULTS_FILE FAKEBIN_PATH="$FAKEBIN" \
         HARNESS_DNS_MODE="${DNS_MODES[$name]:-ok}" HARNESS_FAIL_CREATE="${FAIL_CREATE[$name]:-0}"
 
-    if [[ "$name" == "non_root" ]]; then
-        # Läuft bewusst ohne unshare (EUID bleibt unprivilegiert)
-        "case_non_root"
+    if [[ "$name" == "non_root" || "$name" == "ttyd_version_format" ]]; then
+
+        # Läuft bewusst ohne unshare (EUID bleibt unprivilegiert / braucht echte ttyd-Ausgabe)
+        "case_$name"
     else
         unshare -rm bash "$SELF" --ns-setup --inner "$name" "$preset" < /dev/null
     fi
@@ -387,6 +423,7 @@ CASES=(
     help
     zero_fallback
     error_chain
+    ttyd_version_format
     non_root
 )
 

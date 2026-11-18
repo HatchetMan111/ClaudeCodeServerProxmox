@@ -4,7 +4,8 @@
 #   ohne Arg  → Usage auf stderr + Exit 1
 case "${1:-}" in
     -v | --version)
-        printf '1.7.7-40e79c7\n'
+        # Exakt wie ttyd 1.7.7 server.c: printf("ttyd version %s\n", TTYD_VERSION)
+        printf 'ttyd version 1.7.7-40e79c7\n'
         exit 0
         ;;
     *)

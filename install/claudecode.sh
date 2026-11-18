@@ -353,7 +353,9 @@ if [[ ! -x /usr/local/bin/ttyd ]]; then
     rm -f /tmp/ttyd.x86_64 /tmp/ttyd-SHA256SUMS
 fi
 TTYD_VER_OUT=\$(/usr/local/bin/ttyd -v 2>/dev/null || true)
-if grep -q "^${TTYD_VERSION}" <<< "\$TTYD_VER_OUT"; then
+# ttyd 1.7.7 server.c: ttyd -v gibt "ttyd version 1.7.7-40e79c7" aus.
+# Gegen die echte Quelle verifiziert (src/server.c, Tag 1.7.7) – NICHT raten!
+if grep -q "ttyd version ${TTYD_VERSION}" <<< "\$TTYD_VER_OUT"; then
     echo "ttyd ${TTYD_VERSION} einsatzbereit"
 else
     echo "FEHLER: /usr/local/bin/ttyd meldet nicht die erwartete Version ${TTYD_VERSION}"
