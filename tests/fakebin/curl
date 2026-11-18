@@ -32,13 +32,13 @@ case "$url" in
         ;;
     *ttyd/releases/download/*ttyd.x86_64)
         [[ -n "$out" ]] || { echo "mock-curl: -o fehlt (ttyd)" >&2; exit 1; }
-        printf '#!/usr/bin/env bash\necho "ttyd version 1.7.7 (mock)"\n' > "$out"
+        # Gleiche Quelle wie die SHA256SUMS-Zeile unten → Checksumme stimmt.
+        cp "${HARNESS_ASSETS:?}/mock-ttyd.sh" "$out"
+        chmod +x "$out"
         ;;
     *ttyd/releases/download/*SHA256SUMS)
         [[ -n "$out" ]] || { echo "mock-curl: -o fehlt (SHA256SUMS)" >&2; exit 1; }
-        # Summe über EXAKT das passt, was der Binary-Download liefert
-        printf '#!/usr/bin/env bash\necho "ttyd version 1.7.7 (mock)"\n' > /tmp/mock-ttyd-ref
-        sum=$(sha256sum /tmp/mock-ttyd-ref | awk '{print $1}')
+        sum=$(sha256sum "${HARNESS_ASSETS:?}/mock-ttyd.sh" | awk '{print $1}')
         printf '%s  ttyd.x86_64\n' "$sum" > "$out"
         ;;
     http://127.0.0.1:*)

@@ -335,7 +335,12 @@ ln -sfn "\$CLAUDE_BIN" /usr/local/bin/claude
 claude --version
 
 echo ">>> ttyd ${TTYD_VERSION} installieren (statisches Web-Terminal-Binary) ..."
-if [[ ! -x /usr/local/bin/ttyd ]] || ! /usr/local/bin/ttyd --version 2>/dev/null | grep -q "${TTYD_VERSION}"; then
+# Grube (Live 2026-11-18): ttyd --version gibt es NICHT – ohne Argument
+# kommt immer die Usage auf stderr + Exit 1. Deshalb ttyd NICHT per bare-Name
+# aufrufen (liegt nicht im PATH des pct-exec → Exit 127 killt unter set -e)
+# und KEINE invertierte Pipe im if (if ! cmd | grep liefert 0→1 und killt den
+# Lauf). Reihenfolge: erst installieren, was fehlt – dann EIN Nachweis.
+if [[ ! -x /usr/local/bin/ttyd ]]; then
     curl -fsSL --retry 3 "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64" -o /tmp/ttyd.x86_64
     curl -fsSL --retry 3 "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/SHA256SUMS" -o /tmp/ttyd-SHA256SUMS
     TTYD_SUM=\$(awk '\$2=="ttyd.x86_64" {print \$1}' /tmp/ttyd-SHA256SUMS)
@@ -346,7 +351,14 @@ if [[ ! -x /usr/local/bin/ttyd ]] || ! /usr/local/bin/ttyd --version 2>/dev/null
     install -m 755 /tmp/ttyd.x86_64 /usr/local/bin/ttyd
     rm -f /tmp/ttyd.x86_64 /tmp/ttyd-SHA256SUMS
 fi
-ttyd --version
+TTYD_OUT=\$(/usr/local/bin/ttyd 2>&1 || true)
+if grep -q "ttyd.*${TTYD_VERSION}" <<< "\$TTYD_OUT"; then
+    echo "ttyd ${TTYD_VERSION} einsatzbereit"
+else
+    echo "FEHLER: /usr/local/bin/ttyd meldet nicht die erwartete Version ${TTYD_VERSION}"
+    echo "  Ausgabe war: \$TTYD_OUT"
+    exit 10
+fi
 
 echo ">>> Workspace + Session-Wrapper anlegen (/root/claude-workspace) ..."
 mkdir -p /root/claude-workspace

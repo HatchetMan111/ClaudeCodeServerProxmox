@@ -141,6 +141,8 @@ case_fresh_install() {
     assert_contains "$w" "claude-workspace" "Wrapper wechselt in Workspace"
 
     assert_file /usr/local/bin/claude "claude-Symlink vorhanden"
+    assert_file /usr/local/bin/ttyd "ttyd installiert"
+    assert_contains "$OUT" "ttyd 1.7.7 einsatzbereit" "ttyd-Installations-Nachweis über Usage (kein --version!)"
     assert_file /root/claude-workspace "Workspace angelegt"
     assert_file /opt/claude-code/claude.env "claude.env angelegt"
     assert_mode /opt/claude-code/claude.env 600 "claude.env ist chmod 600"
