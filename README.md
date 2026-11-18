@@ -41,6 +41,7 @@ bash -c "$(wget -qLO - https://raw.githubusercontent.com/HatchetMan111/ClaudeCod
 | `--api-key KEY` | – | `ANTHROPIC_API_KEY` setzen (sonst OAuth-Login im ersten Lauf) |
 | `--desktop` | – | Claude Desktop App (Linux-Beta) + virtueller Bildschirm (Xvfb) + noVNC im Browser (Port 6080) |
 | `--desktop-port PORT` | `6080` | noVNC-Web-Port im Container |
+| `--desktop-only` | – | Nur die Desktop-App im **bestehenden** Container nachrüsten (Claude Code bleibt unangetastet) |
 | `--force` | – | Vorhandenen CT mit gleichem Hostname löschen + neu anlegen |
 | `--yes / -y` | – | Rückfragen überspringen |
 | `--update` | – | Claude-Code-Version im bestehenden CT erneuern |

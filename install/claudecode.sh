@@ -52,6 +52,7 @@ API_KEY=""                  # optional: ANTHROPIC_API_KEY (sonst OAuth-Login im 
 WEB_PASSWORD=""             # Basic-Auth-Passwort für ttyd (leer = automatisch)
 DESKTOP=0                 # Claude Desktop App (Linux-Beta) + Xvfb + noVNC (Port 6080)
 DESKTOP_PORT=6080           # noVNC-Web-Port für die Desktop-App im Container
+DESKTOP_ONLY=false          # nur die Desktop-App im BESTEHENDEN CT nachrüsten
 UNINSTALL=false
 UPDATE=false
 STATUS_CHECK=false
@@ -246,6 +247,7 @@ parse_args() {
             --api-key)         API_KEY="${args[$((i+1))]:-}"; i=$((i+2)) ;;
             --desktop)         DESKTOP=1; i=$((i+1)) ;;
             --desktop-port)    DESKTOP_PORT="${args[$((i+1))]:-}"; i=$((i+2)) ;;
+            --desktop-only)    DESKTOP_ONLY=true; DESKTOP=1; i=$((i+1)) ;;
             --force)           FORCE_RECREATE=true; i=$((i+1)) ;;
             --yes|-y)          ASSUME_YES=true; i=$((i+1)) ;;
             --update)          UPDATE=true; i=$((i+1)) ;;
@@ -281,6 +283,7 @@ Optionen (hinter dem schließenden Anführungszeichen anhängen, z. B. ... " --i
   --api-key KEY         ANTHROPIC_API_KEY setzen (sonst OAuth-Login im ersten Lauf)
   --desktop             Claude Desktop App (Linux-Beta) + virtueller Bildschirm (Xvfb) + noVNC im Browser (Port 6080)
   --desktop-port PORT   noVNC-Web-Port im Container (Default: 6080)
+  --desktop-only        Nur die Desktop-App im BESTEHENDEN Container nachrüsten (Claude Code bleibt)
   --force               Vorhandenen Container mit gleichem Hostname löschen und neu anlegen
   --yes / -y            Rückfragen überspringen
   --update              Claude-Code-Version im bestehenden Container erneuern (Login bleibt)
@@ -429,8 +432,10 @@ HINTS
 grep -q '^CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=' /opt/claude-code/claude.env 2>/dev/null || \
     printf '# Remote Control (Web-UI) braucht Feature-Flags: diese NICHT auf 1 setzen!\n# CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1  -> deaktiviert Remote Control\n' >> /opt/claude-code/claude.env
 
-if [[ "${DESKTOP:-0}" == "1" ]]; then
-    echo ">>> Claude Desktop App (Linux-Beta) + virtueller Bildschirm (Xvfb) + noVNC ..."
+setup_desktop_block() {
+# Wird als FUNKTION im Inner-Script ausgeführt – so kann --desktop-only
+# genau diesen Block im bestehenden CT nachrüsten (ohne Claude Code neu).
+echo ">>> Claude Desktop App (Linux-Beta) + virtueller Bildschirm (Xvfb) + noVNC ..."
     # Desktop-App braucht zwingend ein Display: im headless-LXC über Xvfb +
     # x11vnc + noVNC (WebSocket) im Browser. Claude Desktop = Electron-App.
     apt-get install -y -qq xvfb x11vnc novnc websockify xterm >/dev/null
@@ -466,6 +471,10 @@ if [[ "${DESKTOP:-0}" == "1" ]]; then
     install -m 644 /tmp/claudecode-src/app/claudecode-desktop.service /etc/systemd/system/claudecode-desktop.service
     sed -i "s/__DESKTOP_PORT__/${DESKTOP_PORT}/g" /etc/systemd/system/claudecode-desktop.service
     echo ">>> Desktop-Start: /opt/claude-code/desktop-start.sh (noVNC Port ${DESKTOP_PORT})"
+}
+
+if [[ "${DESKTOP:-0}" == "1" ]]; then
+    setup_desktop_block
 fi
 
 # Aufräumen erst NACH allen installs
@@ -479,6 +488,10 @@ if [[ "${DESKTOP:-0}" == "1" ]]; then
     echo ">>> Desktop-Service aktivieren (Claude Desktop via noVNC) ..."
     systemctl enable --now claudecode-desktop.service
     systemctl restart claudecode-desktop.service
+fi
+
+if [[ "${DESKTOP_ONLY:-0}" == "1" ]]; then
+    echo ">>> --desktop-only: nur Desktop-Stack gestartet, Claude-Code-Units unverändert."
 fi
 
 echo ">>> Setup abgeschlossen. Log: /var/log/claudecode-setup.log"
@@ -500,7 +513,7 @@ run_inner_setup() {
     # Exit-Code (Fehler im inner liefen als "erfolgreich" durch!).
     pct exec "$ct_id" -- env CLAUDE_VERSION="$CLAUDE_VERSION" PORT="$PORT" \
         WEB_PASSWORD="$WEB_PASSWORD" API_KEY="$API_KEY" HOST_DNS="$HOST_DNS" \
-        DESKTOP="$DESKTOP" DESKTOP_PORT="$DESKTOP_PORT" \
+        DESKTOP="$DESKTOP" DESKTOP_PORT="$DESKTOP_PORT" DESKTOP_ONLY="$DESKTOP_ONLY" \
         bash -c "bash /root/setup-inner.sh 2>&1 | tee /var/log/claudecode-setup.log; exit \${PIPESTATUS[0]}"
 }
 
@@ -635,6 +648,35 @@ print_summary() {
     echo ""
     warn "Hinweis: das Web-Terminal ist ein ROOT-Terminal im Container (LXC-Isolation)."
     warn "Port ${PORT} nicht ohne VPN/Firewall ins Internet exposen – Basic-Auth ist kein Vollschutz."
+}
+
+# ── Desktop-only (nur Desktop-App im bestehenden CT nachrüsten) ─────────────
+do_desktop_only() {
+    header "🖥️  Desktop-App im bestehenden Container nachrüsten (--desktop-only)"
+
+    local ct_id
+    ct_id=$(find_ct_id_by_hostname || true)
+    if [[ -z "$ct_id" ]]; then
+        die "Kein Container mit Hostname '$CT_HOSTNAME' gefunden.\n  Erst installieren:  ${ONE_LINER}"
+    fi
+    CT_ID="$ct_id"
+
+    ensure_ct_running "$ct_id"
+    verify_ct_dns "$ct_id"
+
+    # Bestehendes Web-Terminal-Passwort übernehmen (Summary soll weiter stimmen)
+    if [[ -z "$WEB_PASSWORD" ]]; then
+        WEB_PASSWORD=$(pct exec "$ct_id" -- sh -c "sed -n 's/.*-c ${TTYD_USER}:\([^ ]*\) .*/\1/p' /etc/systemd/system/claudecode-web.service" 2>/dev/null || true)
+        if [[ -z "$WEB_PASSWORD" ]]; then
+            WEB_PASSWORD=$(openssl rand -hex 16 2>/dev/null || true)
+        fi
+    fi
+
+    run_inner_setup "$ct_id"
+    verify_installation "$ct_id"
+
+    ok "--desktop-only abgeschlossen – Claude-Code-Session blieb unverändert."
+    print_summary
 }
 
 # ── Install ────────────────────────────────────────────────────────────────
@@ -863,6 +905,8 @@ elif $UPDATE; then
     do_update
 elif $STATUS_CHECK; then
     do_status
+elif $DESKTOP_ONLY; then
+    do_desktop_only
 else
     do_install
 fi

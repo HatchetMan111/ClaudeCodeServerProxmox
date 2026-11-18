@@ -113,6 +113,25 @@ seed_preset() {
 }
 
 # ── Cases (laufen im NS; non_root bewusst nicht) ───────────────────────────
+case_desktop_only() {
+    # --desktop-only: nur Desktop im BESTEHENDEN CT (kein pct create!)
+    run_installer --desktop-only
+    assert_eq "$RC" 0 "Desktop-only Exit-Code 0"
+    assert_contains "$OUT" "Desktop-App im bestehenden Container nachrüsten" "Desktop-only-Modus erkannt"
+    assert_contains "$OUT" "Desktop-App installiert" "Desktop-App installiert"
+    assert_contains "$OUT" "claudecode-desktop.service läuft" "Desktop-Service läuft"
+    assert_contains "$OUT" "--desktop-only abgeschlossen" "Desktop-only Abschlussmeldung"
+    # Es darf KEIN neuer Container erzeugt worden sein (bestehender CT 206 genutzt)
+    assert_no_file "$HARNESS_STATE/pct-create-206.args" "kein pct create im Desktop-only-Modus"
+    local calls
+    calls=$(cat "$HARNESS_STATE/pct-calls.log" 2>/dev/null || echo "")
+    if grep -q "pct create" <<< "$calls"; then
+        fail "Desktop-only darf keinen Container erzeugen"
+    else
+        ok "Desktop-only erzeugt keinen Container (idempotent auf bestehendem CT)"
+    fi
+}
+
 case_desktop() {
     # --desktop: Claude Desktop App (Linux-Beta) + Xvfb + noVNC
     run_installer --desktop
@@ -405,7 +424,8 @@ declare -A PRESETS=(
     [dns_dead]=fresh [update_stopped]=existing-stopped [status_running]=status-running
     [status_stopped]=status-stopped [uninstall_yes]=uninstall [uninstall_confirm]=uninstall
     [dup_hostname]=dup [api_key]=fresh [version_pin]=fresh [help]=fresh
-    [zero_fallback]=status-running [error_chain]=fresh [ttyd_version_format]=fresh [desktop]=fresh
+    [zero_fallback]=status-running [error_chain]=fresh [ttyd_version_format]=fresh
+    [desktop]=fresh [desktop_only]=status-running
 )
 declare -A DNS_MODES=(
     [dns_late]=late [dns_flaky]=flaky4 [dns_dead]=dead
@@ -468,6 +488,7 @@ CASES=(
     error_chain
     ttyd_version_format
     desktop
+    desktop_only
     non_root
 )
 
