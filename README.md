@@ -61,6 +61,18 @@ Alternativ:
 - **Long-lived Token (Max-Subscription):** im Terminal `claude setup-token` ausführen
 - **Terminal statt Browser:** `pct enter <CT-ID>` → `tmux attach -t claude`
 
+## 🖥️ Moderne Web-Oberfläche / Desktop (optional)
+
+Claude Code hat neben dem Terminal noch eine **moderne UI** — die aber **nicht** im LXC läuft:
+
+| Oberfläche | Wo sie läuft | Wie sie mit dem LXC verbunden wird |
+|---|---|---|
+| **Remote Control** (claude.ai/code, Browser & Handy) | Anthropic-Cloud, zeigt **diese** Session | In der Session `/login` (OAuth, **Claude-Plan Pro/Max/Ultra/Team/Enterprise nötig, kein API-Key**) → Browser öffnen → Session `claudecode` wählen |
+| **Claude Desktop App** („Code"-Tab) | nativ auf deinem PC (macOS/Windows/Linux .deb) | Per **SSH** auf den CT verbinden (Remote-SSH) |
+| **Web-Terminal** (ttyd) | im LXC | `http://<CT-IP>:7681` (Basic-Auth) |
+
+**Wichtig:** Remote Control ist nur ein **Fenster** in die lokal laufende Session — der CT muss laufen, Claude läuft im Container weiter. Die Desktop-App ist ein natives Programm (kein LXC-Paket); sie verbindet sich per SSH.
+
 ## 📡 Zugriffe
 
 | Was | Wo |

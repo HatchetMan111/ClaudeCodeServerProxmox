@@ -119,6 +119,7 @@ case_fresh_install() {
     assert_contains "$OUT" "Claude Code ist bereit!" "Summary erscheint"
     assert_contains "$OUT" "http://10.0.0.42:7681" "Summary zeigt CT-IP + Port"
     assert_contains "$OUT" "2.1.326 (Claude Code)" "claude --version verifiziert"
+    assert_contains "$OUT" "Moderne Web-Oberfläche" "Summary zeigt Web-UI-Optionen (Remote Control/Desktop)"
     assert_contains "$OUT" "HTTP 200" "Web-Terminal HTTP-Check mit Basic-Auth"
     assert_contains "$OUT" "aabbccdd00112233aabbccdd00112233" "generiertes Web-PW in Summary"
 
@@ -154,6 +155,19 @@ case_fresh_install() {
         ok "ohne --api-key bleibt claude.env ohne Key"
     fi
     if grep -q "claude.env" /root/.bashrc 2>/dev/null; then ok ".bashrc source-Zeile vorhanden"; else fail ".bashrc source-Zeile fehlt"; fi
+
+    # Web-UI-Vorbereitung (Remote Control / claude.ai/code)
+    assert_file /root/.claude/CLAUDE_CODE_REMOTE_CONTROL_HINTS "Remote-Control-Hinweise für Web-UI angelegt"
+    if grep -q "claude.ai/code" /root/.claude/CLAUDE_CODE_REMOTE_CONTROL_HINTS 2>/dev/null; then
+        ok "Web-UI-Hinweis nennt claude.ai/code"
+    else
+        fail "Web-UI-Hinweis nennt claude.ai/code nicht"
+    fi
+    if grep -q "DISABLE_NONESSENTIAL_TRAFFIC" /opt/claude-code/claude.env 2>/dev/null; then
+        ok "claude.env enthält Remote-Control-Hinweis (Feature-Flags)"
+    else
+        fail "claude.env enthält Remote-Control-Hinweis (Feature-Flags) nicht"
+    fi
 
     assert_file "$HARNESS_STATE/systemd/claudecode-session.service.active" "Session-Service aktiv"
     assert_file "$HARNESS_STATE/systemd/claudecode-web.service.active" "Web-Service aktiv"

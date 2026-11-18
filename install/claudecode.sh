@@ -402,6 +402,27 @@ sed -i "s/__PORT__/${PORT}/g; s/__WEB_PASSWORD__/\${WEB_PASSWORD}/g" \
     /etc/systemd/system/claudecode-session.service \
     /etc/systemd/system/claudecode-web.service
 
+echo ">>> Web-UI (Remote Control) vorbereiten ..."
+# Moderne Web-Oberfläche (claude.ai/code): Remote Control verbindet Browser/
+# Handy mit DIESER lokal laufenden Claude-Session. Voraussetzungen (offiziell):
+#   - Claude-Plan Pro/Max/Ultra/Team/Enterprise (KEIN API-Key!)
+#   - /login per OAuth (Profil unter /root/.claude)
+#   - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC / _FEATURE_FLAGS dürfen NICHT
+#     gesetzt sein, sonst ist Remote Control deaktiviert (Doku env-vars)
+mkdir -p /root/.claude
+cat > /root/.claude/CLAUDE_CODE_REMOTE_CONTROL_HINTS <<'HINTS'
+Claude Code Web-Oberfläche (Remote Control) – so geht's:
+  1. In dieser Session: /login  (OAuth-Link im Browser öffnen, Claude-Plan nötig:
+     Pro/Max/Ultra/Team/Enterprise – API-Key funktioniert NICHT)
+  2. Browser: https://claude.ai/code  →  Session "claudecode" (dieser CT) öffnen
+  3. Alternativ: Claude Desktop App (Code-Tab) → per SSH auf diesen CT verbinden
+Hinweis: Web/Handy sind nur ein Fenster in diese Session – der CT muss laufen.
+HINTS
+# Remote-Control-freundliche Env: die beiden Disable-Flags dürfen nicht gesetzt
+# sein (Feature-Flag-Evaluation). Nur setzen, wenn noch kein Wert vorhanden.
+grep -q '^CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=' /opt/claude-code/claude.env 2>/dev/null || \
+    printf '# Remote Control (Web-UI) braucht Feature-Flags: diese NICHT auf 1 setzen!\n# CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1  -> deaktiviert Remote Control\n' >> /opt/claude-code/claude.env
+
 # Aufräumen erst NACH allen installs
 rm -rf /tmp/claudecode-src /tmp/claudecode-installer.tar.gz
 
@@ -524,6 +545,11 @@ print_summary() {
     fi
     echo "  3. Fertig – die Session läuft weiter, auch wenn du den Browser schließt."
     echo "     Zurückkehren: URL wieder öffnen (oder ssh/pct enter → tmux attach -t claude)."
+    echo ""
+    echo -e "  ${CYAN}Moderne Web-Oberfläche (optional, Claude-Plan nötig – kein API-Key):${NC}"
+    echo "  • Remote Control: /login in der Session → https://claude.ai/code → Session hier öffnen"
+    echo "    (Browser/Handy als Fenster in diese Session; Claude läuft weiter im Container)"
+    echo "  • Claude Desktop App (Code-Tab) → per SSH auf diesen CT verbinden (nativ, nicht im LXC)"
     echo ""
     echo -e "  ${CYAN}Nützliche Befehle (exakt kopierbar):${NC}"
     echo "  Status:    ${ONE_LINER} --status"
